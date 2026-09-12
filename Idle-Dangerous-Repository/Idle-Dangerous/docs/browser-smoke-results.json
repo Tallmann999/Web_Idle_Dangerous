@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "viewports": [
+    "390×844",
+    "320×640",
+    "360×640",
+    "412×915",
+    "768×1024",
+    "1440×900"
+  ],
+  "checks": [
+    "no page overflow",
+    "8 visible side slots",
+    "equipment popup",
+    "click closes popup",
+    "inventory pauses combat",
+    "bulk equipment purchase",
+    "guild exit",
+    "contract consumes 5",
+    "sell all",
+    "reload retains guild and inventory",
+    "boss navigation",
+    "boss exit and reentry"
+  ],
+  "pageErrors": [],
+  "missingAssets": []
+}
