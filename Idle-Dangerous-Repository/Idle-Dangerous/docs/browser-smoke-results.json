@@ -1,5 +1,6 @@
 {
   "status": "passed",
+  "engine": "Phaser 4.2.1",
   "viewports": [
     "390×844",
     "320×640",
@@ -9,10 +10,12 @@
     "1440×900"
   ],
   "checks": [
+    "one Phaser canvas",
     "no page overflow",
     "8 visible side slots",
     "equipment popup",
-    "click closes popup",
+    "Phaser pointer closes popup",
+    "keyboard attack",
     "inventory pauses combat",
     "bulk equipment purchase",
     "guild exit",
@@ -20,7 +23,15 @@
     "sell all",
     "reload retains guild and inventory",
     "boss navigation",
-    "boss exit and reentry"
+    "boss exit and reentry",
+    "all six regions and texture cache revisit",
+    "SDK pause and resume",
+    "touch kills and rotates enemy",
+    "boss victory saves reward once",
+    "boss timeout and free retry",
+    "subdirectory hosting",
+    "asset error pause and retry",
+    "Canvas renderer fallback"
   ],
   "pageErrors": [],
   "missingAssets": []

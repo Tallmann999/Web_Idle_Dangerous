@@ -1,0 +1,119 @@
+{
+  "helmet": {
+    "sheet": "Item/item2.png",
+    "rect": [
+      0,
+      442,
+      215,
+      703
+    ]
+  },
+  "armor": {
+    "sheet": "Item/item2.png",
+    "rect": [
+      982,
+      436,
+      1254,
+      712
+    ]
+  },
+  "bracers": {
+    "sheet": "Item/item2.png",
+    "rect": [
+      500,
+      447,
+      709,
+      710
+    ]
+  },
+  "boots": {
+    "sheet": "Item/item2.png",
+    "rect": [
+      709,
+      440,
+      982,
+      710
+    ]
+  },
+  "shoulders": {
+    "sheet": "Item/item6.png",
+    "rect": [
+      734,
+      941,
+      982,
+      1225
+    ]
+  },
+  "ring": {
+    "sheet": "Item/item01.png",
+    "rect": [
+      10,
+      557,
+      248,
+      791
+    ]
+  },
+  "amulet": {
+    "sheet": "Item/item01.png",
+    "rect": [
+      1006,
+      277,
+      1254,
+      556
+    ]
+  },
+  "claw": {
+    "sheet": "Item/item6.png",
+    "rect": [
+      20,
+      655,
+      283,
+      927
+    ]
+  },
+  "hide": {
+    "sheet": "Item/item6.png",
+    "rect": [
+      970,
+      35,
+      1254,
+      355
+    ]
+  },
+  "bone": {
+    "sheet": "Item/item6.png",
+    "rect": [
+      288,
+      652,
+      609,
+      927
+    ]
+  },
+  "crystal": {
+    "sheet": "Item/item01.png",
+    "rect": [
+      1010,
+      10,
+      1254,
+      276
+    ]
+  },
+  "essence": {
+    "sheet": "Item/item7.png",
+    "rect": [
+      1017,
+      55,
+      1254,
+      350
+    ]
+  },
+  "heart": {
+    "sheet": "Item/item7.png",
+    "rect": [
+      297,
+      348,
+      538,
+      650
+    ]
+  }
+}

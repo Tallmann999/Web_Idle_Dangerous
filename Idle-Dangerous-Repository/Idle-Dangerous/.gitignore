@@ -50,3 +50,6 @@ next-env.d.ts
 !/Itch.io production build/.gitkeep
 
 !.env.poki
+
+# Local verification build for the Phaser migration
+/dist-poki-check/

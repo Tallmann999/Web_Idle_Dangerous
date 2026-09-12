@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import * as E from './engine';
-import { GearIcon, MaterialIcon, DungeonArch } from './Icons';
-import enemies from './enemies.json';
+import { GearIcon, MaterialIcon } from './Icons';
+import { PhaserArena, type ArenaHandle } from './phaser/PhaserArena';
 import { platformBridge } from '../platform/bridge';
 import { platformConfig } from '../platform/config';
 import './idle.css';
@@ -13,18 +13,17 @@ export default function Game(){
  const [initial]=useState(load);const ref=useRef<E.State>(initial);const [s,setS]=useState({...initial});
  const [panel,setPanel]=useState<Panel>(null),[gear,setGear]=useState<E.GearId|null>(null),[bulk,setBulk]=useState(1);
  const [notice,setNotice]=useState('Нажимайте на монстра. Шлем уже добавляет автоурон.');
- const [hits,setHits]=useState<{id:number;x:number;y:number;damage:number}[]>([]);
  const [celebrating,setCelebrating]=useState(false),[adBusy,setAdBusy]=useState(false),[hidden,setHidden]=useState(document.hidden),[started,setStarted]=useState(false);
  const [saveProblem,setSaveProblem]=useState(false);
- const effects=useRef(0),celebrateTimer=useRef<ReturnType<typeof setTimeout>|null>(null),lastKill=useRef(0);
- const blocked=useRef(false),sound=useRef<HTMLAudioElement|null>(null),saveDirty=useRef(false);
+ const [sceneReady,setSceneReady]=useState(false);
+ const celebrateTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+ const blocked=useRef(false),saveDirty=useRef(false),arena=useRef<ArenaHandle|null>(null);
  const refresh=()=>{saveDirty.current=true;setS({...ref.current});};
  const save=()=>{try{localStorage.setItem(E.SAVE_KEY,JSON.stringify(ref.current));saveDirty.current=false;setSaveProblem(false);}catch{setSaveProblem(true);}};
  const mutate=(fn:(state:E.State)=>void)=>{fn(ref.current);refresh();save();};
- blocked.current=!started||hidden||!!panel||celebrating||adBusy||s.location==='guild';
+ blocked.current=!started||!sceneReady||hidden||!!panel||celebrating||adBusy||s.location==='guild'||s.offerRoom!==null;
  const announce=(out:E.Outcome)=>{
   if(!out.killed&&!out.failed)return;
-  if(out.killed)lastKill.current=performance.now();
   if(out.failed)setNotice('Время вышло. Добыча сохранена — усильте экипировку и повторите.');
   else if(out.bossWon){setNotice(ref.current.completed?'Подземелье пройдено! Можно продолжать фарм.':'Босс повержен! Следующая комната открыта.');setCelebrating(true);celebrateTimer.current=setTimeout(()=>setCelebrating(false),1800);}
   else if(out.unlocked)setNotice('Путь открыт! Нажмите «Вглубь» или оставайтесь фармить.');
@@ -32,35 +31,29 @@ export default function Game(){
   save();
  };
  useEffect(()=>{
-  sound.current=new Audio(asset('audio/gray-impact-1.mp3'));sound.current.volume=.22;
-  platformBridge.loadingFinished();
   const visibility=()=>{setHidden(document.hidden);save();};
   const pagehide=()=>save();
-  const pause=()=>{blocked.current=true;setAdBusy(true);sound.current?.pause();};
+  const pause=()=>{blocked.current=true;setAdBusy(true);};
   const resume=()=>setAdBusy(false);
   document.addEventListener('visibilitychange',visibility);window.addEventListener('pagehide',pagehide);
   window.addEventListener('mage:platform-pause',pause);window.addEventListener('mage:platform-resume',resume);
-  let last=performance.now();const timer=setInterval(()=>{const now=performance.now(),dt=(now-last)/1000;last=now;if(blocked.current||performance.now()-lastKill.current<450)return;const out=E.tick(ref.current,dt);announce(out);refresh();},200);
   const saving=setInterval(()=>{if(saveDirty.current)save();},15000);
-  return()=>{clearInterval(timer);clearInterval(saving);if(celebrateTimer.current)clearTimeout(celebrateTimer.current);document.removeEventListener('visibilitychange',visibility);window.removeEventListener('pagehide',pagehide);window.removeEventListener('mage:platform-pause',pause);window.removeEventListener('mage:platform-resume',resume);sound.current?.pause();};
+  return()=>{clearInterval(saving);if(celebrateTimer.current)clearTimeout(celebrateTimer.current);document.removeEventListener('visibilitychange',visibility);window.removeEventListener('pagehide',pagehide);window.removeEventListener('mage:platform-pause',pause);window.removeEventListener('mage:platform-resume',resume);};
  },[]);
- useEffect(()=>{if(!started||hidden||panel||celebrating||adBusy||s.location==='guild'||s.offerRoom!==null)platformBridge.gameplayStop();else platformBridge.gameplayStart();},[started,hidden,panel,celebrating,adBusy,s.location,s.offerRoom]);
+ useEffect(()=>{if(sceneReady||s.location==='guild')platformBridge.loadingFinished();},[sceneReady,s.location]);
+ useEffect(()=>{if(!started||!sceneReady||hidden||panel||celebrating||adBusy||s.location==='guild'||s.offerRoom!==null)platformBridge.gameplayStop();else platformBridge.gameplayStart();},[started,sceneReady,hidden,panel,celebrating,adBusy,s.location,s.offerRoom]);
  useEffect(()=>{const esc=(e:KeyboardEvent)=>{if(e.key==='Escape'){setPanel(null);setGear(null);}};window.addEventListener('keydown',esc);return()=>window.removeEventListener('keydown',esc);},[]);
 
  useEffect(()=>{const trap=(e:KeyboardEvent)=>{if(e.key!=='Tab')return;const scope=document.querySelector('.start-overlay')||document.querySelector('[role="dialog"]');if(!scope)return;const list=Array.from(scope.querySelectorAll<HTMLElement>('button:not(:disabled),[tabindex="0"]'));if(!list.length)return;const first=list[0],last=list[list.length-1];if(e.shiftKey&&(document.activeElement===first||!scope.contains(document.activeElement))){e.preventDefault();last.focus();}else if(!e.shiftKey&&(document.activeElement===last||!scope.contains(document.activeElement))){e.preventDefault();first.focus();}};document.addEventListener('keydown',trap);return()=>document.removeEventListener('keydown',trap);},[]);
  const currentLayer=E.layer(s.room),isBoss=E.boss(s.room);
- const pool=enemies[String(currentLayer.region) as keyof typeof enemies];
- const enemySrc=isBoss?`art/bosses/boss-${String((Math.floor(s.room/5)-1)%18+1).padStart(2,'0')}.webp`:`art/enemies/${pool[(s.room*3+s.serial)%pool.length]}`;
  const enemyName=isBoss?'Хранитель глубины':['Пожиратель костей','Склеповый охотник','Страж катакомб','Проклятое создание','Тварь из глубин'][(s.room+s.serial)%5];
- const attack=(e:React.MouseEvent<HTMLButtonElement>)=>{if(blocked.current||s.offerRoom!==null)return;setGear(null);if(performance.now()-lastKill.current<450)return;
-  const damage=E.clickDamage(ref.current),rect=e.currentTarget.getBoundingClientRect();const id=++effects.current;
-  setHits(h=>[...h.slice(-5),{id,x:e.detail?e.clientX-rect.left:rect.width/2,y:e.detail?e.clientY-rect.top:rect.height/2,damage}]);
-  if(ref.current.sound&&sound.current){sound.current.currentTime=0;void sound.current.play().catch(()=>{});}
-  announce(E.damage(ref.current,damage));refresh();
- };
  const openPanel=(p:Panel)=>{setGear(null);setPanel(p);};
  const next=()=>{let room=s.room+1;while(s.defeated.includes(room))room++;mutate(t=>{if(E.go(t,room))setNotice(`Комната ${room}. Путь продолжается.`);});};
- const gearButton=(id:E.GearId)=>{const d=E.EQUIPMENT.find(x=>x.id===id)!,g=s.gear[id],locked=s.highest<d.gate;return <button key={id} className={`gear-slot ${gear===id?'selected':''} ${g.level?'owned':'unowned'}`} style={{'--gear-color':d.color} as CSSProperties} onClick={()=>{setGear(gear===id?null:id);setPanel(null);}} aria-label={`${d.name}, ${g.level?`уровень ${g.level}`:`открывается в комнате ${d.gate}`}`}><GearIcon id={id}/><span>{d.name}</span><small>{g.level?`ур. ${g.level}`:locked?`◈ ${d.gate}`:'Купить'}</small>{!locked&&s.gold>=E.gearCost(s,id)&&g.level<999&&<i/>}</button>;};
+ const gearButton=(id:E.GearId)=>{
+  const d=E.EQUIPMENT.find(x=>x.id===id)!,g=s.gear[id],locked=s.highest<d.gate;
+  const ready=!locked&&((g.level<999&&s.gold>=E.gearCost(s,id))||E.MILESTONES.some((t,i)=>g.level>=t&&!g.upgrades.includes(t)&&s.gold>=E.upgradeCost(id,i)));
+  return <button key={id} className={`gear-slot ${gear===id?'selected':''} ${g.level?'owned':'unowned'} ${ready?'upgrade-ready':''}`} style={{'--gear-color':d.color} as CSSProperties} onClick={()=>{setGear(gear===id?null:id);setPanel(null);}} title={ready?(g.level?'Доступно улучшение':'Доступна покупка'):d.title} aria-label={`${d.name}, ${g.level?`уровень ${g.level}`:`открывается в комнате ${d.gate}`}`}><GearIcon id={id}/><span>{d.name}</span><small>{g.level?`ур. ${g.level}`:locked?`◈ ${d.gate}`:'Купить'}</small>{ready&&<i className="upgrade-indicator" aria-hidden="true">↑</i>}</button>;
+ };
  const sellLoot=(id?:E.MaterialId,contract=false)=>mutate(t=>{const gold=E.sell(t,id,contract);setNotice(contract?`Заказ сдан: +${fmt(gold)} золота, +5 репутации`:`Продано: +${fmt(gold)} золота`);});
  async function rewarded(){if(adBusy||s.offerRoom===null)return;const room=s.offerRoom;setAdBusy(true);const success=await platformBridge.rewardedBreak();if(success)mutate(t=>{E.rescue(t,room);});else setNotice('Реклама недоступна. Награда не выдана, можно повторить босса бесплатно.');setAdBusy(false);}
  const inventoryList=(guild=false)=><div className="material-list">{E.MATERIALS.map(m=>{const stack=s.inventory[m.id];return <article key={m.id} className={!stack.count?'empty':''}><div className="material-art" style={{color:m.color}}><MaterialIcon id={m.id}/></div><div><strong>{m.name}</strong><small>{stack.count} шт. · стоимость партии <b>{fmt(stack.value)}</b></small>{guild&&stack.count>0&&<div className="trade-actions"><button onClick={()=>sellLoot(m.id)}>Продать</button><button disabled={stack.count<5} onClick={()=>sellLoot(m.id,true)}>Сдать 5 · +5 реп.</button></div>}</div></article>;})}</div>;
@@ -71,14 +64,14 @@ export default function Game(){
    <section className="depth-header"><div><small>ПОДЗЕМЕЛЬЕ · ЯРУС {currentLayer.region} / 6</small><h2>{currentLayer.name}</h2></div><button onClick={()=>openPanel('path')}>Путь <span>↟</span></button></section>
    <div className="room-progress"><span>Комната <b>{s.room}</b> / 105</span><div className="pips">{Array.from({length:10},(_,i)=><i key={i} className={isBoss?'boss-pip':i<s.kills?'filled':''}/>)}</div><b>{isBoss?'БОСС':`${s.kills} / 10`}</b></div>
    <section className={`arena ${isBoss?'boss-arena':''}`}>
-    <div className="scene-background" style={{backgroundImage:`url(${asset(`art/backgrounds/zone-${String(currentLayer.region).padStart(2,'0')}.webp`)})`}}/><DungeonArch/>
+    <PhaserArena handle={arena} bridge={{state:()=>ref.current,blocked:()=>blocked.current,changed:refresh,outcome:announce,attacked:()=>setGear(null),loading:(progress,error)=>setSceneReady(progress===1&&!error)}}/>
     <div className="enemy-caption"><small>{isBoss?'СТРАЖ ПУТИ':'ОБИТАТЕЛЬ ПОДЗЕМЕЛЬЯ'}</small><h3>{enemyName}</h3><div className="hp-track"><i style={{width:`${Math.max(0,s.hp/E.hpMax(s)*100)}%`}}/><span>{fmt(s.hp)} / {fmt(E.hpMax(s))} HP</span></div>{isBoss&&<div className={`boss-timer ${s.bossTime<10?'danger':''}`}>◷ {s.bossTime.toFixed(1)} с {s.boost?'· ×2 DPS':''}</div>}</div>
-    <button className="enemy-target" aria-label="Ударить монстра" onClick={attack} disabled={celebrating||s.offerRoom!==null}><span className="enemy-shadow"/><img key={enemySrc} className="monster" src={asset(enemySrc)} alt={enemyName} draggable={false}/>{hits.map(h=><span key={h.id} className="impact" style={{left:h.x,top:h.y}} onAnimationEnd={()=>setHits(prev=>prev.filter(x=>x.id!==h.id))}><i/><b>−{fmt(h.damage)}</b></span>)}</button>
+    <button className="enemy-target keyboard-attack" aria-label="Ударить монстра" onClick={()=>arena.current?.attack()} disabled={celebrating||s.offerRoom!==null}><span>Ударить · Enter / пробел</span></button>
     <div className="gear-rail left">{(['helmet','armor','bracers','boots'] as E.GearId[]).map(gearButton)}</div>
     <div className="gear-rail right">{(['shoulders','ring','amulet'] as E.GearId[]).map(gearButton)}<button className={`gear-slot focus ${s.focusUntil>Date.now()?'active':''}`} onClick={()=>{if(s.clickLevel<10)openPanel('training');else mutate(t=>{if(E.focus(t))setNotice('Боевой настрой: урон клика ×2 на 15 секунд.');});}} disabled={s.clickLevel>=10&&Date.now()<s.focusReady}><GearIcon id="click"/><span>Настрой</span><small>{s.clickLevel<10?'Клик ур. 10':Date.now()<s.focusUntil?`${Math.ceil((s.focusUntil-Date.now())/1000)} с`:Date.now()<s.focusReady?`${Math.ceil((s.focusReady-Date.now())/1000)} с`:'×2 клик'}</small></button></div>
     {!gear&&<div className="tap-hint">НАЖИМАЙТЕ НА МОНСТРА<br/><small>Экипировка атакует автоматически</small></div>}
     {celebrating&&<div className="victory-flash"><span>✦</span><h2>{s.completed?'ПОДЗЕМЕЛЬЕ ПРОЙДЕНО':'БОСС ПОВЕРЖЕН'}</h2><p>Добыча собрана · путь открыт</p></div>}
-    {gear&&(()=>{const d=E.EQUIPMENT.find(x=>x.id===gear)!,g=s.gear[gear];return <aside className="gear-popover" aria-label={`Прокачка: ${d.name}`}><button className="close" aria-label="Закрыть прокачку" onClick={()=>setGear(null)}>×</button><div className="gear-title"><div style={{color:d.color}}><GearIcon id={gear}/></div><div><small>ЭКИПИРОВКА · {g.level?`УРОВЕНЬ ${g.level}`:'НЕ КУПЛЕНО'}</small><h3>{d.title}</h3><p>{fmt(E.gearDps(s,gear))} урона / сек</p></div></div>{s.highest<d.gate?<p className="unlock-rule">Откройте комнату {d.gate}, чтобы купить предмет.</p>:<><div className="buy-row"><div className="bulk">{[1,10,25,999].map(n=><button key={n} className={bulk===n?'chosen':''} onClick={()=>setBulk(n)}>{n===999?'MAX':`×${n}`}</button>)}</div><button className="gold-button" disabled={s.gold<E.gearCost(s,gear)||g.level>=999} onClick={()=>mutate(t=>{const n=E.buy(t,gear,bulk);if(n)setNotice(`${d.name}: +${n} ур.`);})}>{g.level>=999?'Макс. уровень':g.level?`Улучшить · от ${fmt(E.gearCost(s,gear))}`:`Купить · ${fmt(d.cost)}`}</button></div><div className="milestones">{E.MILESTONES.map((t,i)=><button key={t} disabled={g.level<t||g.upgrades.includes(t)||s.gold<E.upgradeCost(gear,i)} onClick={()=>mutate(state=>{E.specialize(state,gear,t);})}><span>{g.upgrades.includes(t)?'✓':`ур. ${t}`}</span><b>×2</b><small>{g.upgrades.includes(t)?'куплено':fmt(E.upgradeCost(gear,i))}</small></button>)}</div></>}<small className="popover-hint">Нажмите на монстра, чтобы закрыть окно и ударить</small></aside>;})()}
+    {gear&&(()=>{const d=E.EQUIPMENT.find(x=>x.id===gear)!,g=s.gear[gear];return <aside className="gear-popover" aria-label={`Прокачка: ${d.name}`}><button className="close" aria-label="Закрыть прокачку" onClick={()=>setGear(null)}>×</button><div className="gear-title"><div style={{color:d.color}}><GearIcon id={gear}/></div><div><small>ЭКИПИРОВКА · {g.level?`УРОВЕНЬ ${g.level}`:'НЕ КУПЛЕНО'}</small><h3>{d.title}</h3><p>{fmt(E.gearDps(s,gear))} урона / сек</p></div></div>{s.highest<d.gate?<p className="unlock-rule">Откройте комнату {d.gate}, чтобы купить предмет.</p>:<><div className="buy-row"><div className="bulk">{[1,10,25,999].map(n=><button key={n} className={bulk===n?'chosen':''} onClick={()=>setBulk(n)}>{n===999?'MAX':`×${n}`}</button>)}</div><button className="gold-button" disabled={s.gold<E.gearCost(s,gear)||g.level>=999} onClick={()=>mutate(t=>{const n=E.buy(t,gear,bulk);if(n)setNotice(`${d.name}: +${n} ур.`);})}>{g.level>=999?'Макс. уровень':g.level?`Улучшить · от ${fmt(E.gearCost(s,gear))}`:`Купить · ${fmt(d.cost)}`}</button></div><div className="milestones">{E.MILESTONES.map((t,i)=><button key={t} className={g.level>=t&&!g.upgrades.includes(t)&&s.gold>=E.upgradeCost(gear,i)?'upgrade-ready':''} disabled={g.level<t||g.upgrades.includes(t)||s.gold<E.upgradeCost(gear,i)} onClick={()=>mutate(state=>{E.specialize(state,gear,t);})}><span>{g.upgrades.includes(t)?'✓':`ур. ${t}`}</span><b>×2</b><small>{g.upgrades.includes(t)?'куплено':fmt(E.upgradeCost(gear,i))}</small></button>)}</div></>}<small className="popover-hint">Нажмите на монстра, чтобы закрыть окно и ударить</small></aside>;})()}
    </section>
    <div className="notice" role="status">{notice}</div>
    <section className="advance"><button className="exit-button" onClick={()=>{setGear(null);mutate(E.leave);setNotice('Вы в гильдии. Добыча и глубина сохранены.');}}>↥ В гильдию<small>Выйти с добычей</small></button><button className="gold-button" disabled={s.room>=s.highest||s.room===104&&s.completed} onClick={next}>{s.completed&&s.room===104?'Путь завершён':'Вглубь →'}<small>{s.room<s.highest?'Следующая открытая комната':isBoss?'Победите босса':'Победите 10 монстров'}</small></button></section>

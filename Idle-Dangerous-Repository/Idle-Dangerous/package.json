@@ -17,6 +17,7 @@
     "release:poki": "npm run build:poki && node scripts/package-idle.mjs poki"
   },
   "dependencies": {
+    "phaser": "4.2.1",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },

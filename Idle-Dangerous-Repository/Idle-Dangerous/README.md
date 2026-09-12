@@ -1,6 +1,6 @@
 # Idle Dangerous
 
-Вертикальная браузерная игра на базе предоставленного проекта Clicker Weapon Adventure.
+Вертикальная HTML5-игра на **Phaser 4.2.1**, TypeScript и Vite. React используется для адаптивного HTML-интерфейса. Основа — существующая Idle Dangerous, история Clicker Weapon Adventure сохранена в документации.
 
 **Монстры → золото и компоненты → экипировка → глубина → гильдия → новый спуск.**
 
@@ -25,7 +25,7 @@ npm run preview
 
 На Windows после установки зависимостей: `START-PREVIEW.cmd`.
 
-В папке `release/` находятся отдельные ZIP только с web-сборкой. В них `index.html` лежит в корне. Архив `idle-dangerous-local.zip` предназначен для обычного статического хостинга; `idle-dangerous-poki.zip` содержит Poki SDK и предназначен для дальнейшей проверки в Inspector.
+Команды `release:local` и `release:poki` создают отдельные ZIP в `release/` только по явному запросу. В них `index.html` лежит в корне. Архив `idle-dangerous-local.zip` предназначен для обычного статического хостинга; `idle-dangerous-poki.zip` содержит Poki SDK и предназначен для дальнейшей проверки в Inspector.
 
 ## Команды
 
@@ -48,7 +48,9 @@ npm run release:poki     # Poki-сборка и ZIP
 
 ## Где продолжать разработку
 
-Главный интерфейс — `src/idle/Game.tsx`. Игровая логика — `src/idle/engine.ts`. Концепт — `docs/project-concept.md`. Начните чтение документов с `docs/README.md`.
+Главный интерфейс — `src/idle/Game.tsx`. Боевая сцена, цикл симуляции, ввод, звук и эффекты — `src/idle/phaser/DungeonScene.ts`. Игровая логика — `src/idle/engine.ts`. Начните чтение с `docs/README.md` и [описания переноса на Phaser](docs/phaser-migration.md).
+
+88 врагов и 18 изображений боссов взяты из `public/art`; фон меняется по шести ярусам. Иконки вещей и компонентов вырезаны из `public/Item`, оригиналы сохранены. Повторить нарезку: `python scripts/prepare-idle-art.py` (нужен Pillow). Готовые WebP и Phaser-атлас уже находятся в `public/art/items`.
 
 Старый экран в `src/game/Game.tsx` не используется. Сохранения старой игры не импортируются. Новый ключ: `idle-dangerous-save-v1`.
 
@@ -56,4 +58,4 @@ npm run release:poki     # Poki-сборка и ZIP
 
 ## Новый репозиторий и версия из чата
 
-Порядок переноса: [NEW-REPOSITORY.md](NEW-REPOSITORY.md). Экспорт играбельного превью: `preview/idle-dangerous.html`. Основной редактируемый проект находится в `src/idle/`.
+Порядок переноса: [NEW-REPOSITORY.md](NEW-REPOSITORY.md). `preview/idle-dangerous.html` — историческое однофайловое превью до Phaser, оно не обновляется вместе с игрой. Актуальная игра запускается через Vite или `dist/index.html` на HTTP-сервере.
