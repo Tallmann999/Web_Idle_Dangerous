@@ -31,7 +31,7 @@ export const LAYERS = [
 ];
 export type MaterialId = typeof MATERIALS[number]['id'];
 export type State = {
- version:1; gold:number; room:number; highest:number; kills:number; serial:number; hp:number;
+ version:1; gold:number; diamonds:number; room:number; highest:number; kills:number; serial:number; hp:number;
  bossTime:number; defeated:number[]; gear:Record<GearId,{level:number;upgrades:number[]}>;
  clickLevel:number; inventory:Record<MaterialId,{count:number;value:number}>;
  location:'dungeon'|'guild'; reputation:number; totalKills:number; completed:boolean;
@@ -48,12 +48,14 @@ export const gearCost = (s:State,id:GearId) => {const d=EQUIPMENT.find(x=>x.id==
 export const upgradeCost = (id:GearId,index:number) => EQUIPMENT.find(x=>x.id===id)!.upgradeCost*[1,5,25,150,800][index];
 export const lootCount = (s:State) => MATERIALS.reduce((n,m)=>n+s.inventory[m.id].count,0);
 export const lootValue = (s:State) => MATERIALS.reduce((n,m)=>n+s.inventory[m.id].value,0);
-export function fresh():State {return {version:1,gold:0,room:1,highest:1,kills:0,serial:0,hp:10,bossTime:30,defeated:[],gear:Object.fromEntries(EQUIPMENT.map((d,i)=>[d.id,{level:i?0:1,upgrades:[]}])) as unknown as State['gear'],clickLevel:0,inventory:Object.fromEntries(MATERIALS.map(m=>[m.id,{count:0,value:0}])) as State['inventory'],location:'dungeon',reputation:0,totalKills:0,completed:false,offerRoom:null,offerHp:0,rescueUsed:false,boost:false,focusUntil:0,focusReady:0,sound:true};}
+export function fresh():State {return {version:1,gold:0,diamonds:0,room:1,highest:1,kills:0,serial:0,hp:10,bossTime:30,defeated:[],gear:Object.fromEntries(EQUIPMENT.map((d,i)=>[d.id,{level:i?0:1,upgrades:[]}])) as unknown as State['gear'],clickLevel:0,inventory:Object.fromEntries(MATERIALS.map(m=>[m.id,{count:0,value:0}])) as State['inventory'],location:'dungeon',reputation:0,totalKills:0,completed:false,offerRoom:null,offerHp:0,rescueUsed:false,boost:false,focusUntil:0,focusReady:0,sound:true};}
 const safe=(n:unknown, fallback=0,max=1e100)=>typeof n==='number'&&Number.isFinite(n)?Math.max(0,Math.min(max,n)):fallback;
 export function normalize(raw:unknown):State {
  const s=fresh();if(!raw||typeof raw!=='object'||(raw as State).version!==1)return s;
  const r=raw as Partial<State>;
  s.gold=safe(r.gold);s.highest=Math.max(1,Math.floor(safe(r.highest,1,105)));s.room=Math.max(1,Math.floor(safe(r.room,1,s.highest)));
+ // Existing v1 saves gain an empty diamond wallet without changing gold or loot.
+ s.diamonds=safe(r.diamonds);
  s.completed=r.completed===true&&s.highest===105;
  s.defeated=Array.from({length:21},(_,i)=>(i+1)*5).filter(n=>n<s.highest||(n===105&&s.completed));
  if(s.defeated.includes(s.room))s.room=Math.max(1,s.room-1);
@@ -84,9 +86,9 @@ export function specialize(s:State,id:GearId,t:number):boolean {
 }
 export function train(s:State):boolean {const c=clickCost(s);if(s.gold<c||s.clickLevel>=999)return false;s.gold-=c;s.clickLevel++;return true;}
 export function sell(s:State,id?:MaterialId,contract=false):number {
- if(s.location!=='guild')return 0;let gold=0;
- for(const m of MATERIALS){if(id&&id!==m.id)continue;const stack=s.inventory[m.id];if(contract&&stack.count<5)continue;const quantity=contract?5:stack.count;if(!quantity)continue;const value=quantity===stack.count?stack.value:Math.floor(stack.value*quantity/stack.count);stack.count-=quantity;stack.value-=value;gold+=value;if(contract)s.reputation+=5;}
- s.gold+=gold;return gold;
+ if(s.location!=='guild')return 0;let diamonds=0;
+ for(const m of MATERIALS){if(id&&id!==m.id)continue;const stack=s.inventory[m.id];if(contract&&stack.count<5)continue;const quantity=contract?5:stack.count;if(!quantity)continue;const value=quantity===stack.count?stack.value:Math.floor(stack.value*quantity/stack.count);stack.count-=quantity;stack.value-=value;diamonds+=value;if(contract)s.reputation+=5;}
+ s.diamonds=safe(s.diamonds)+diamonds;return diamonds;
 }
 export function focus(s:State,now=Date.now()):boolean {if(s.clickLevel<10||now<s.focusReady)return false;s.focusUntil=now+15000;s.focusReady=now+615000;return true;}
 export function rescue(s:State,room:number):boolean {if(s.offerRoom!==room||s.rescueUsed||s.defeated.includes(room))return false;const remaining=s.offerHp;go(s,room);s.hp=Math.max(1,Math.min(hpMax(s),remaining));s.bossTime=15;s.boost=true;s.rescueUsed=true;return true;}

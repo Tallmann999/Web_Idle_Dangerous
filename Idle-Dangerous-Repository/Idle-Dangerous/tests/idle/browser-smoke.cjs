@@ -31,11 +31,11 @@ const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),
   await page.addInitScript(({key,state})=>{if(!sessionStorage.getItem('qa-seeded')){localStorage.setItem(key,JSON.stringify(state));sessionStorage.setItem('qa-seeded','1');}},{key:E.SAVE_KEY,state:seeded});await page.reload();await page.locator('.start-overlay button').click();await page.evaluate(()=>window.dispatchEvent(new Event('mage:platform-pause')));
   await page.getByRole('button',{name:'Шлем, уровень 1',exact:true}).click();await page.getByRole('button',{name:'×10',exact:true}).click();await page.getByRole('button',{name:/Улучшить · от/}).click();await page.getByRole('button',{name:'Шлем, уровень 11',exact:true}).waitFor();await page.getByRole('button',{name:'Закрыть прокачку',exact:true}).click();
   await page.getByRole('button',{name:/В гильдию.*Выйти с добычей/}).click();await page.screenshot({path:path.join(captures,'guild-390x844.png')});
-  await page.locator('.material-list article').filter({hasText:'Когти'}).getByRole('button',{name:'Сдать 5 · +5 реп.',exact:true}).click();assert.match(await page.locator('.guild-rank').textContent(),/5 реп/);assert.match(await page.locator('.guild-screen .loot-summary').textContent(),/2 шт/);
-  await page.getByRole('button',{name:/Продать всю добычу/}).click();assert.match(await page.locator('.guild-screen .loot-summary').textContent(),/0 шт/);
-  await page.reload();await page.locator('.start-overlay button').click();assert.equal(await page.locator('.guild-screen').count(),1);assert.match(await page.locator('.guild-screen .loot-summary').textContent(),/0 шт/);
-  await page.getByRole('button',{name:/Спуститься · комната/}).click();await page.locator('.depth-header button').click();await page.getByRole('button',{name:/Комната 5.*Босс · 30 секунд/}).click();assert.equal(await page.locator('.boss-timer').count(),1);
-  await page.getByRole('button',{name:/В гильдию.*Выйти с добычей/}).click();await page.getByRole('button',{name:/Спуститься · комната 5/}).click();assert.match(await page.locator('.boss-timer').textContent(),/30.0|29.8|29.6/);
+  const goldBeforeTrade=await page.getByTestId('gold').textContent();await page.locator('.material-list article').filter({hasText:'Когти'}).getByRole('button',{name:'Сдать 5 · +5 реп.',exact:true}).click();assert.equal(await page.getByTestId('diamonds').textContent(),'13');assert.equal(await page.getByTestId('gold').textContent(),goldBeforeTrade);assert.match(await page.locator('.guild-rank').textContent(),/5 реп/);assert.match(await page.locator('.guild-screen .loot-summary').textContent(),/2 шт/);
+  await page.getByRole('button',{name:/Продать всю добычу/}).click();assert.match(await page.locator('.guild-screen .loot-summary').textContent(),/0 шт/);assert.equal(await page.getByTestId('diamonds').textContent(),'19');assert.equal(await page.getByTestId('gold').textContent(),goldBeforeTrade);
+  await page.reload();await page.locator('.start-overlay button').click();assert.equal(await page.locator('.guild-screen').count(),1);assert.match(await page.locator('.guild-screen .loot-summary').textContent(),/0 шт/);assert.equal(await page.getByTestId('diamonds').textContent(),'19');assert.equal(await page.getByTestId('gold').textContent(),goldBeforeTrade);
+  await page.getByRole('button',{name:/Подняться · уровень/}).click();await page.locator('.depth-header button').click();await page.getByRole('button',{name:/Комната 5.*Босс · 30 секунд/}).click();assert.equal(await page.locator('.boss-timer').count(),1);
+  await page.getByRole('button',{name:/В гильдию.*Выйти с добычей/}).click();await page.getByRole('button',{name:/Подняться · уровень 5/}).click();assert.match(await page.locator('.boss-timer').textContent(),/30.0|29.8|29.6/);
   await page.locator('.depth-header button').click();await page.screenshot({path:path.join(captures,'path-390x844.png')});
 
   async function scenario(state, options={}, suffix='') {
@@ -46,6 +46,65 @@ const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),
    await p.locator('.arena-loading').waitFor({state:'detached'});
    return {p,context};
   }
+  // Compact controls keep sound synchronized and show the path rising bottom to top.
+  await page.getByRole('button',{name:'Закрыть окно',exact:true}).click();
+  await page.getByRole('button',{name:'Настройки',exact:false}).click();
+  await page.getByRole('dialog',{name:'Настройки',exact:true}).waitFor();
+  const initialSound=await page.locator('.settings-sound').getAttribute('aria-pressed');
+  await page.locator('.settings-sound').click();
+  assert.notEqual(await page.locator('.sound-button').getAttribute('aria-pressed'),initialSound);
+  await page.getByRole('button',{name:'Закрыть окно',exact:true}).click();
+  await page.locator('.sound-button').click();
+  assert.equal(await page.locator('.sound-button').getAttribute('aria-pressed'),initialSound);
+  assert.equal(await page.locator('.brand h1').count(),0);
+  assert.equal((await page.locator('.brand').boundingBox()).height,31);
+  assert.equal((await page.locator('.level-card').first().boundingBox()).height,36);
+  assert.equal((await page.locator('.level-card').first().boundingBox()).width,34);
+  await page.locator('.depth-header button').click();
+  assert.equal(await page.locator('.path-room').first().getAttribute('data-room'),'105');
+  assert.equal(await page.locator('.path-room').last().getAttribute('data-room'),'1');
+  const pathVisible=await page.evaluate(()=>{const list=document.querySelector('.path-list').getBoundingClientRect(),room=document.querySelector('.path-room.current').getBoundingClientRect();return room.top>=list.top&&room.bottom<=list.bottom;});
+  assert.ok(pathVisible,'Ascending map opens at current floor');
+  await page.screenshot({path:path.join(captures,'path-390x844.png')});
+
+  // The level strip preserves progress on the current card and skips defeated bosses.
+  const midgame=E.fresh();midgame.room=58;midgame.highest=58;midgame.kills=4;midgame.gear.helmet.level=0;
+  const slider=await scenario(midgame);
+  assert.equal(await slider.p.locator('.level-card').count(),105);
+  const centered=await slider.p.evaluate(()=>{const t=document.querySelector('.level-track').getBoundingClientRect(),c=document.querySelector('.level-card.current').getBoundingClientRect();return Math.abs((c.left+c.right-t.left-t.right)/2)<2;});
+  assert.ok(centered,'Restored level is centered');
+  await slider.p.locator('[data-level="58"]').click();
+  assert.match(await slider.p.locator('.room-progress').textContent(),/4 \/ 10/,'Selecting current level must not reset kills');
+  assert.ok(await slider.p.locator('[data-level="55"]').isDisabled(),'Defeated boss cannot be replayed');
+  assert.ok(await slider.p.locator('[data-level="59"]').isDisabled(),'Future level stays locked');
+  await slider.p.locator('[data-level="54"]').click();
+  await slider.p.locator('.arena-loading').waitFor({state:'detached'});
+  await slider.p.locator('.advance .gold-button').click();
+  assert.equal(await slider.p.locator('.level-card.current').getAttribute('data-level'),'56','Next level skips defeated boss 55');
+  await slider.p.screenshot({path:path.join(captures,'levels-390x844.png')});
+  await slider.p.locator('.level-track').hover();
+  const beforeScroll=await slider.p.locator('.level-track').evaluate(e=>e.scrollLeft);
+  await slider.p.mouse.wheel(0,240);
+  await slider.p.waitForFunction(left=>document.querySelector('.level-track').scrollLeft>left,beforeScroll);
+  await slider.p.getByRole('button',{name:'Прокрутить уровни назад',exact:true}).click();
+  await slider.p.waitForTimeout(400);
+  await slider.p.locator('.level-track').evaluate(e=>{e.scrollLeft=e.scrollWidth;});
+  await slider.p.waitForFunction(()=>document.querySelector('[aria-label="Прокрутить уровни вперёд"]').disabled);
+  assert.equal(await slider.p.locator('[data-level="105"]').count(),1);
+  await slider.context.close();
+
+  const swipe=await scenario(midgame,{hasTouch:true,isMobile:true});
+  const strip=await swipe.p.locator('.level-track').boundingBox();
+  const swipeBefore=await swipe.p.locator('.level-track').evaluate(e=>e.scrollLeft);
+  const cdp=await swipe.context.newCDPSession(swipe.p);
+  const y=strip.y+strip.height/2,x=strip.x+strip.width-20;
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
+  for(let i=1;i<=6;i++){await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x-i*25,y}]});await swipe.p.waitForTimeout(25);}
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  await swipe.p.waitForFunction(left=>document.querySelector('.level-track').scrollLeft>left,swipeBefore);
+  assert.equal(await swipe.p.locator('.level-card.current').getAttribute('data-level'),'58','Swiping does not select a level');
+  await swipe.context.close();
+
   // Navigate on the same Phaser instance, including an evicted and a cached region.
   const explored=E.fresh();explored.highest=105;
   const art=await scenario(explored);
@@ -134,7 +193,7 @@ const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),
   assert.notEqual(await fallback.locator('.hp-track span').textContent(),fallbackHp);
   await fallback.screenshot({path:path.join(captures,'phaser-canvas-fallback.png')});await fallbackContext.close();
   assert.deepEqual(errors,[]);assert.deepEqual(missing,[]);
-  const result={status:'passed',engine:'Phaser 4.2.1',viewports:['390×844','320×640','360×640','412×915','768×1024','1440×900'],checks:['one Phaser canvas','no page overflow','8 visible side slots','equipment popup','Phaser pointer closes popup','keyboard attack','inventory pauses combat','bulk equipment purchase','guild exit','contract consumes 5','sell all','reload retains guild and inventory','boss navigation','boss exit and reentry','all six regions and texture cache revisit','SDK pause and resume','touch kills and rotates enemy','boss victory saves reward once','boss timeout and free retry','subdirectory hosting','asset error pause and retry','Canvas renderer fallback'],pageErrors:errors,missingAssets:missing};
+  const result={status:'passed',engine:'Phaser 4.2.1',viewports:['390×844','320×640','360×640','412×915','768×1024','1440×900'],checks:['half-size header and level cards','settings and toolbar sound synchronized','ascending map opens at current floor','105 level cards and restored current centering','current level retains kills','locked levels and defeated bosses disabled','next skips defeated bosses','wheel and arrow scrolling','touch swipe without level selection','one Phaser canvas','no page overflow','8 visible side slots','equipment popup','Phaser pointer closes popup','keyboard attack','inventory pauses combat','bulk equipment purchase','guild exit','contract consumes 5','sell all for diamonds','diamond wallet persists without changing gold','reload retains guild and inventory','boss navigation','boss exit and reentry','all six regions and texture cache revisit','SDK pause and resume','touch kills and rotates enemy','boss victory saves reward once','boss timeout and free retry','subdirectory hosting','asset error pause and retry','Canvas renderer fallback'],pageErrors:errors,missingAssets:missing};
   fs.writeFileSync('docs/browser-smoke-results.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));
  }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

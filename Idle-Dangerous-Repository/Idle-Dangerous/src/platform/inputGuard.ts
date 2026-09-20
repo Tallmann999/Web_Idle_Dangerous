@@ -13,6 +13,8 @@ function scrollableAncestor(target: EventTarget | null, deltaY?: number): Elemen
   let element: Element | null = target;
   while (element && element !== document.documentElement) {
     const style = window.getComputedStyle(element);
+    // The level strip handles wheel input and uses native horizontal touch scrolling.
+    if (element.hasAttribute('data-horizontal-scroll') && /(auto|scroll)/.test(style.overflowX) && element.scrollWidth > element.clientWidth) return element;
     const scrollable = /(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight;
     if (scrollable) {
       if (deltaY === undefined) return element;
