@@ -84,4 +84,9 @@
 .brand.compact-toolbar button>small{display:inline;margin:0;font-size:8px;letter-spacing:0;color:#acb9aa}
 .brand.compact-toolbar .sound-button[aria-pressed="false"]{color:#82918b}
 .settings-sound[aria-pressed="true"]{border-color:#9cac79;color:#e3d19c}
+.milestones button.upgrade-purchased{position:relative;opacity:1;border-color:#59c77b;background:linear-gradient(145deg,#234d35,#10271f);box-shadow:inset 0 0 0 1px #8de5a51c,0 0 8px #42bf6e45;color:#8ce6ad}
+.milestones .upgrade-purchased .milestone-check{font-size:26px;line-height:25px;font-weight:700;color:#83e5a6;text-shadow:0 0 7px #5be29266}
+.milestones .upgrade-purchased b{color:#b2edc1}
+.milestones .upgrade-purchased small{color:#8ed4a5}
+.milestones .upgrade-purchased .milestone-level{position:absolute;top:4px;right:4px;font-size:8px;line-height:1;font-weight:700;color:#8ed4a5}
 @media(max-height:730px){.brand.compact-toolbar{height:23px;min-height:23px;padding-block:0}.brand.compact-toolbar button{height:21px;font-size:10px}.brand.compact-toolbar button>span{font-size:14px}}
